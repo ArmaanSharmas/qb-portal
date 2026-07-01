@@ -148,9 +148,7 @@ def _render_player_card(p):
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
             <div style="flex:1;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px; flex-wrap:wrap;">
-                    <span style="font-size:0.97rem; font-weight:700; color:#0d1b2a;">{p['name']}</span>
-                    {contingent_html}
-                </div>
+                    <span style="font-size:0.97rem; font-weight:700; color:#0d1b2a;">{p['name']}</span>{contingent_html}</div>
                 <div style="font-size:0.78rem; color:#4b5563; margin-bottom:6px;">
                     {p['school']} &nbsp;·&nbsp; {p['conference']} &nbsp;·&nbsp; {p['currentRole']} &nbsp;·&nbsp;
                     {p['class']} &nbsp;·&nbsp; {p['eligibilityYears']} yrs eligibility
@@ -320,9 +318,7 @@ with tab_prof:
         <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
             <div>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:3px;">
-                    <span style="font-size:1.75rem; font-weight:700; color:#ffffff;">{p['name']}</span>
-                    {contingent_badge}
-                </div>
+                    <span style="font-size:1.75rem; font-weight:700; color:#ffffff;">{p['name']}</span>{contingent_badge}</div>
                 <div style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin-bottom:8px;">
                     {p['school']} &nbsp;·&nbsp; {p['conference']} &nbsp;·&nbsp; {p['currentRole']} &nbsp;·&nbsp; {p['class']}
                 </div>
