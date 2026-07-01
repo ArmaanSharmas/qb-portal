@@ -5,7 +5,10 @@ import pandas as pd
 import plotly.graph_objects as go
 
 sys.path.insert(0, os.path.dirname(__file__))
-from data.players import PLAYERS, TIER_CONFIG, GRADE_COLORS, PORTAL_PROB_COLORS, BUILD_TIER_LABELS
+from data.players import (
+    PLAYERS, TIER_CONFIG, GRADE_COLORS, PORTAL_PROB_COLORS, BUILD_TIER_LABELS,
+    UPSIDE_COLORS, AVAILABILITY_COLORS, SYSTEM_FIT_COLORS,
+)
 
 st.set_page_config(
     page_title="QB Portal Scouting Report — 2026",
@@ -29,7 +32,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     max-width: 1380px;
 }
 
-/* ── Report header ── */
 .report-header {
     background: linear-gradient(135deg, #0d1b2a 0%, #1a2e4a 100%);
     padding: 1.5rem 2rem;
@@ -43,7 +45,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     gap: 1rem;
 }
 
-/* ── Badges ── */
 .tier-badge {
     display: inline-block; padding: 2px 8px; border-radius: 3px;
     font-size: 0.66rem; font-weight: 700; letter-spacing: 0.4px;
@@ -59,8 +60,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     font-size: 0.71rem; font-weight: 500; color: #374151;
     display: inline-block; margin: 1px;
 }
+.contingent-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 3px;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;
+    color: #92400e; background: #fef3c7; border: 1px solid #fcd34d;
+    text-transform: uppercase;
+}
 
-/* ── Section title ── */
 .section-title {
     font-size: 0.67rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: 1.5px; color: #64748b;
@@ -68,21 +74,18 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     border-bottom: 1px solid #e2e8f0;
 }
 
-/* ── Overview player rows ── */
 .player-row-card {
     background: white; border: 1px solid #e2e8f0; border-radius: 5px;
     padding: 0.85rem 1rem; margin-bottom: 0.4rem;
     border-left: 3px solid #1d4ed8;
 }
 
-/* ── Summary / eval boxes ── */
 .summary-box {
     background: rgba(128,128,128,0.07); border-left: 3px solid #b8952a;
     padding: 0.85rem 1rem; border-radius: 0 5px 5px 0;
     font-size: 0.87rem; line-height: 1.65;
 }
 
-/* ── Metric box ── */
 .metric-box {
     background: #f8fafc; border-radius: 6px;
     padding: 0.7rem 0.9rem; text-align: center; border: 1px solid #e2e8f0;
@@ -94,7 +97,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 }
 .metric-box .mdesc { font-size: 0.61rem; color: #94a3b8; margin-top: 3px; }
 
-/* ── Player detail header ── */
 .player-detail-header {
     background: linear-gradient(135deg, #0d1b2a 0%, #1a2e4a 100%);
     padding: 1.4rem 1.8rem; border-radius: 8px; margin-bottom: 1rem;
@@ -103,7 +105,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 """, unsafe_allow_html=True)
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def grade_color(grade):
     return GRADE_COLORS.get(grade, "#374151")
 
@@ -117,10 +119,64 @@ def format_adv_metric(name, val):
         return f"{val:+.3f}"
     return str(val)
 
+def stars_display(n):
+    if n is None:
+        return "—"
+    return "★" * n
+
+UPSIDE_ORDER    = {"High": 3, "Moderate": 2, "Low": 1}
+AVAIL_ORDER     = {"High": 3, "Moderate": 2, "Low": 1}
+
+
+def _render_player_card(p):
+    tier_cfg     = TIER_CONFIG[p["tier"]]
+    status_color = "#1a4a2e" if p["status"] == "Monitor" else "#1d4ed8"
+    up_color     = UPSIDE_COLORS.get(p["upside"], "#374151")
+    av_color     = AVAILABILITY_COLORS.get(p["availability"], "#374151")
+    sf_color     = SYSTEM_FIT_COLORS.get(p["systemFit"], "#374151")
+
+    epa_str  = f"EPA/DB: {p['epaPerDropback']:+.3f}" if p["epaPerDropback"] is not None else "EPA/DB: —"
+    adot_str = f"ADOT: {p['adot']}" if p["adot"] is not None else "ADOT: —"
+    stars_str = stars_display(p.get("stars"))
+
+    contingent_html = ""
+    if p.get("contingent"):
+        contingent_html = '<span class="contingent-badge">Only if displaced</span>'
+
+    st.markdown(f"""
+    <div class="player-row-card" style="border-left-color:{tier_cfg['color']};">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px; flex-wrap:wrap;">
+                    <span style="font-size:0.97rem; font-weight:700; color:#0d1b2a;">{p['name']}</span>
+                    {contingent_html}
+                </div>
+                <div style="font-size:0.78rem; color:#4b5563; margin-bottom:6px;">
+                    {p['school']} &nbsp;·&nbsp; {p['conference']} &nbsp;·&nbsp; {p['currentRole']} &nbsp;·&nbsp;
+                    {p['class']} &nbsp;·&nbsp; {p['eligibilityYears']} yrs eligibility
+                </div>
+                <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center; margin-bottom:5px;">
+                    <span class="tier-badge" style="background:{status_color}">{p['status']}</span>
+                    <span class="stat-chip">{p['hometown']}</span>
+                    <span class="stat-chip">Stars: {stars_str}</span>
+                    <span class="stat-chip" style="color:{up_color}; font-weight:700;">Upside: {p['upside']}</span>
+                    <span class="stat-chip" style="color:{av_color}; font-weight:700;">Avail: {p['availability']}</span>
+                    <span class="stat-chip" style="color:{sf_color}; font-weight:700;">Fit: {p['systemFit']}</span>
+                </div>
+                <div style="font-size:0.77rem; color:#64748b; font-style:italic;">{p['notes']}</div>
+            </div>
+            <div style="text-align:right; flex-shrink:0; min-width:130px;">
+                <div style="font-size:0.72rem; color:#64748b; margin-bottom:4px;">{epa_str} &nbsp; {adot_str}</div>
+                <div style="font-size:0.68rem; color:#94a3b8; margin-top:4px;">Verified: {p['lastVerified']}</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # ── Report Header ─────────────────────────────────────────────────────────────
-proj_total = sum(1 for p in PLAYERS if p["approach"] == "Projection")
-mon_total  = sum(1 for p in PLAYERS if p["approach"] == "Monitor")
+proj_total = sum(1 for p in PLAYERS if p["status"] == "Projection")
+mon_total  = sum(1 for p in PLAYERS if p["status"] == "Monitor")
 
 st.markdown(f"""
 <div class="report-header">
@@ -161,16 +217,20 @@ tab_ov, tab_prof, tab_stats, tab_nil, tab_method = st.tabs(
 # OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_ov:
-    proj_f = sum(1 for p in PLAYERS if p["approach"] == "Projection")
-    mon_f  = sum(1 for p in PLAYERS if p["approach"] == "Monitor")
-    t2_f   = sum(1 for p in PLAYERS if p["tier"] == 2)
-    high_f = sum(1 for p in PLAYERS if p["portal_probability"] in ["High", "Moderate"])
+    # ── Summary counts (computed from data, never hardcoded) ──
+    t2_count   = sum(1 for p in PLAYERS if p["tier"] == 2)
+    cont_count = sum(1 for p in PLAYERS if p["contingent"])
 
     qc1, qc2, qc3, qc4, qc5 = st.columns(5)
     for col, (label, value) in zip(
         [qc1, qc2, qc3, qc4, qc5],
-        [("Total Players", len(PLAYERS)), ("Projection", proj_f), ("Monitor", mon_f),
-         ("Tier 2", t2_f), ("Active Portal Interest", high_f)],
+        [
+            ("Total Players",    len(PLAYERS)),
+            ("Projection",       proj_total),
+            ("Monitor",          mon_total),
+            ("Tier 2",           t2_count),
+            ("Only If Displaced", cont_count),
+        ],
     ):
         col.markdown(f"""
         <div class="metric-box" style="margin-bottom:1rem;">
@@ -179,49 +239,61 @@ with tab_ov:
         </div>
         """, unsafe_allow_html=True)
 
-    for tier_num in [1, 2, 3, 4]:
-        tier_players = [p for p in PLAYERS if p["tier"] == tier_num]
-        if not tier_players:
-            continue
-        cfg = TIER_CONFIG[tier_num]
-        st.markdown(f"""
-        <div style="background:{cfg['color']}12; border-left:3px solid {cfg['color']};
-                    padding:5px 10px; border-radius:0 4px 4px 0; margin:1.1rem 0 0.4rem 0;">
-            <span style="font-size:0.73rem; font-weight:700; color:{cfg['color']};
-                         text-transform:uppercase; letter-spacing:0.8px;">
-                {cfg['label']} &nbsp;({len(tier_players)})
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+    # ── Filter + sort controls ──
+    fc1, fc2, fc3, fc4, fc5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2])
+    with fc1:
+        f_tier = st.selectbox("Tier", ["All", "2", "3", "4"], label_visibility="visible")
+    with fc2:
+        f_status = st.selectbox("Status", ["All", "Projection", "Monitor"])
+    with fc3:
+        f_avail = st.selectbox("Availability", ["All", "High", "Moderate", "Low"])
+    with fc4:
+        f_upside = st.selectbox("Upside", ["All", "High", "Moderate", "Low"])
+    with fc5:
+        sort_by = st.selectbox("Sort by", ["Tier", "Upside", "Availability"])
 
-        for p in tier_players:
-            approach_color = "#1a4a2e" if p["approach"] == "Monitor" else "#1d4ed8"
-            portal_color   = PORTAL_PROB_COLORS.get(p["portal_probability"], "#374151")
-            adv = p.get("advanced_stats")
-            epa_str  = f"EPA/DB: {adv['epa_db']:+.3f}" if adv and adv.get("epa_db") is not None else "EPA/DB: —"
-            adot_str = f"ADOT: {adv['adot']}"           if adv and adv.get("adot") is not None else ""
+    # Apply filters
+    filtered = PLAYERS[:]
+    if f_tier != "All":
+        filtered = [p for p in filtered if p["tier"] == int(f_tier)]
+    if f_status != "All":
+        filtered = [p for p in filtered if p["status"] == f_status]
+    if f_avail != "All":
+        filtered = [p for p in filtered if p["availability"] == f_avail]
+    if f_upside != "All":
+        filtered = [p for p in filtered if p["upside"] == f_upside]
 
-            st.markdown(f"""
-            <div class="player-row-card">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
-                    <div style="flex:1;">
-                        <div style="font-size:0.97rem; font-weight:700; color:#0d1b2a; margin-bottom:1px;">{p['name']}</div>
-                        <div style="font-size:0.78rem; color:#4b5563; margin-bottom:6px;">{p['school']} &nbsp;·&nbsp; {p['pos_info']}</div>
-                        <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
-                            <span class="tier-badge" style="background:{approach_color}">{p['approach']}</span>
-                            <span class="stat-chip">{p['hometown']}</span>
-                            <span class="stat-chip">{p['eligibility']} yrs eligibility</span>
-                        </div>
-                    </div>
-                    <div style="text-align:right; flex-shrink:0;">
-                        <div style="margin-bottom:4px;">
-                            <span class="portal-pill" style="background:{portal_color}">{p['portal_probability']}</span>
-                        </div>
-                        <div style="font-size:0.72rem; color:#64748b;">{epa_str}&nbsp;&nbsp;{adot_str}</div>
-                    </div>
+    # Apply sort
+    if sort_by == "Upside":
+        filtered = sorted(filtered, key=lambda p: (-UPSIDE_ORDER.get(p["upside"], 0), p["tier"]))
+    elif sort_by == "Availability":
+        filtered = sorted(filtered, key=lambda p: (-AVAIL_ORDER.get(p["availability"], 0), p["tier"]))
+    # default: Tier (natural order in PLAYERS list, grouped by tier)
+
+    if not filtered:
+        st.info("No players match the current filters.")
+    else:
+        if sort_by == "Tier":
+            # Group by tier
+            tiers_present = sorted({p["tier"] for p in filtered})
+            for tier_num in tiers_present:
+                tier_players = [p for p in filtered if p["tier"] == tier_num]
+                cfg = TIER_CONFIG[tier_num]
+                st.markdown(f"""
+                <div style="background:{cfg['color']}12; border-left:3px solid {cfg['color']};
+                            padding:5px 10px; border-radius:0 4px 4px 0; margin:1.1rem 0 0.4rem 0;">
+                    <span style="font-size:0.73rem; font-weight:700; color:{cfg['color']};
+                                 text-transform:uppercase; letter-spacing:0.8px;">
+                        {cfg['label']} &nbsp;({len(tier_players)})
+                    </span>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+                for p in tier_players:
+                    _render_player_card(p)
+        else:
+            st.markdown("<div style='height:0.8rem'></div>", unsafe_allow_html=True)
+            for p in filtered:
+                _render_player_card(p)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -234,25 +306,49 @@ with tab_prof:
 
     tier_cfg       = TIER_CONFIG[p["tier"]]
     portal_color   = PORTAL_PROB_COLORS.get(p["portal_probability"], "#374151")
-    approach_color = "#1a4a2e" if p["approach"] == "Monitor" else "#1d4ed8"
+    approach_color = "#1a4a2e" if p["status"] == "Monitor" else "#1d4ed8"
+    up_color       = UPSIDE_COLORS.get(p["upside"], "#374151")
+    av_color       = AVAILABILITY_COLORS.get(p["availability"], "#374151")
+    sf_color       = SYSTEM_FIT_COLORS.get(p["systemFit"], "#374151")
+
+    contingent_badge = ""
+    if p.get("contingent"):
+        contingent_badge = '<span class="contingent-badge" style="font-size:0.72rem; padding:3px 9px;">Only if displaced</span>'
 
     st.markdown(f"""
     <div class="player-detail-header">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
             <div>
-                <div style="font-size:1.75rem; font-weight:700; color:#ffffff; margin-bottom:3px;">{p['name']}</div>
-                <div style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin-bottom:8px;">{p['school']} &nbsp;·&nbsp; {p['pos_info']}</div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:3px;">
+                    <span style="font-size:1.75rem; font-weight:700; color:#ffffff;">{p['name']}</span>
+                    {contingent_badge}
+                </div>
+                <div style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin-bottom:8px;">
+                    {p['school']} &nbsp;·&nbsp; {p['conference']} &nbsp;·&nbsp; {p['currentRole']} &nbsp;·&nbsp; {p['class']}
+                </div>
                 <div style="display:flex; gap:7px; flex-wrap:wrap;">
                     <span class="tier-badge" style="background:{tier_cfg['color']}">{tier_cfg['label']}</span>
-                    <span class="tier-badge" style="background:{approach_color}">{p['approach']} List</span>
-                    <span class="portal-pill" style="background:{portal_color}">Portal: {p['portal_probability']}</span>
+                    <span class="tier-badge" style="background:{approach_color}">{p['status']} List</span>
+                    <span style="font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:3px;
+                                 background:{up_color}22; color:{up_color}; border:1px solid {up_color}55;">
+                        Upside: {p['upside']}
+                    </span>
+                    <span style="font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:3px;
+                                 background:{av_color}22; color:{av_color}; border:1px solid {av_color}55;">
+                        Avail: {p['availability']}
+                    </span>
+                    <span style="font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:3px;
+                                 background:{sf_color}22; color:{sf_color}; border:1px solid {sf_color}55;">
+                        System Fit: {p['systemFit']}
+                    </span>
                 </div>
             </div>
             <div style="text-align:right; font-size:0.81rem; line-height:1.9;">
                 <div style="color:rgba(255,255,255,0.75);">Hometown: <span style="color:#ffffff; font-weight:500;">{p['hometown']}</span></div>
-                <div style="color:rgba(255,255,255,0.75);">Depth Chart: <span style="color:#ffffff; font-weight:500;">{p['depth_chart']}</span></div>
-                <div style="color:rgba(255,255,255,0.75);">Eligibility: <span style="color:#ffffff; font-weight:500;">{p['eligibility']} years</span></div>
+                <div style="color:rgba(255,255,255,0.75);">Eligibility: <span style="color:#ffffff; font-weight:500;">{p['eligibilityYears']} years</span></div>
+                <div style="color:rgba(255,255,255,0.75);">Stars: <span style="color:#ffffff; font-weight:500;">{stars_display(p.get('stars'))}</span></div>
                 <div style="color:rgba(255,255,255,0.75);">Portal Status: <span style="color:#ffffff; font-weight:500;">{p['portal_status']}</span></div>
+                <div style="color:rgba(255,255,255,0.50); font-size:0.72rem;">Verified: {p['lastVerified']}</div>
             </div>
         </div>
     </div>
@@ -480,7 +576,6 @@ with tab_prof:
         """, unsafe_allow_html=True)
 
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # STATS COMPARISON
 # ══════════════════════════════════════════════════════════════════════════════
@@ -553,7 +648,6 @@ with tab_stats:
 
         with sc2:
             st.markdown('<div class="section-title">Pressure% vs Success Rate</div>', unsafe_allow_html=True)
-            # only include players where both pressure_pct and srate are available
             pres_srate_data = [
                 (p_val, s_val, n, c, d)
                 for p_val, s_val, n, c, d in zip(pres_vals, srate_vals, names, marker_colors, db_vals)
@@ -614,7 +708,7 @@ with tab_stats:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_nil:
     st.markdown("### NIL Market Context")
-    st.caption("Estimated portal QB market ranges based on 2024–25 cycle data. Figures reflect total package value across the portal window.")
+    st.caption("Estimated portal QB market ranges based on 2024-25 cycle data. Figures reflect total package value across the portal window.")
 
     st.markdown('<div class="section-title">Portal QB Market Tiers</div>', unsafe_allow_html=True)
 
@@ -639,7 +733,7 @@ with tab_nil:
         },
         {
             "tier":    "Developmental Depth",
-            "profile": "FCS, JUCO, or early-career player acquired to compete for a depth role or develop over 1–2 seasons. Limited immediate starting upside but fills roster and practice needs. Often walk-on or low-scholarship value.",
+            "profile": "FCS, JUCO, or early-career player acquired to compete for a depth role or develop over 1-2 seasons. Limited immediate starting upside but fills roster and practice needs. Often walk-on or low-scholarship value.",
             "range":   "$50K – $200K",
             "color":   "#991b1b",
         },
@@ -666,7 +760,7 @@ with tab_nil:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"""
     <div class="summary-box">
-        The core value of pre-season evaluation is identifying Tier 2–3 talent before it becomes Tier 1 priced.
+        The core value of pre-season evaluation is identifying Tier 2-3 talent before it becomes Tier 1 priced.
         A quarterback who enters the portal after a breakout season will attract multiple Power Four programs
         and price out within the first 48 hours. Programs that have completed this work before the portal window
         opens can move immediately — in the first 48 to 72 hours when the best targets are still available and
@@ -698,7 +792,7 @@ with tab_method:
                 "Physical Profile",
                 "#1d4ed8",
                 "Height, weight, hand size, and build tier.",
-                "Establishes the baseline NFL-viability ceiling and flags measurable concerns before any on-field evaluation begins. Build tier is assigned on a 1–4 scale where Tier 1 represents an NFL prototype at every measurable.",
+                "Establishes the baseline NFL-viability ceiling and flags measurable concerns before any on-field evaluation begins. Build tier is assigned on a 1-4 scale where Tier 1 represents an NFL prototype at every measurable.",
             ),
             (
                 "Throwing Ability",
@@ -751,7 +845,7 @@ with tab_method:
             ),
             (
                 "High School Stat Reliability",
-                "Competition context varies enormously across HS programs and states. Raw numbers from HS are used directionally — not as comparables to college production.",
+                "Competition context varies enormously across HS programs and states. Raw numbers from HS are used directionally, not as comparables to college production.",
             ),
             (
                 "No Tracking Data",
@@ -770,12 +864,12 @@ with tab_method:
                 "Spring performance is a real signal — depth chart movement and coaching staff comments are meaningful data. However, spring reps carry substantially less certainty than game data against live competition.",
             ),
             (
-                "Transfer Likelihood Is Speculative",
-                "Portal probability ratings are educated inference based on depth chart position, eligibility, and program context — not certainty. Players rated Low can enter the portal; players rated High may never.",
+                "Availability Is Speculative",
+                "Upside and availability ratings are educated inference based on depth chart position, eligibility, and program context, not certainty. Players rated Low availability can enter the portal; players rated High may never.",
             ),
             (
                 "Information Recency",
-                "This report reflects evaluations as of May 2026. All ratings and portal projections should be revisited and updated entering fall camp, after depth charts are finalized.",
+                "This report reflects evaluations as of June 2026. All ratings and portal projections should be revisited entering fall camp, after depth charts are finalized.",
             ),
         ]
 
